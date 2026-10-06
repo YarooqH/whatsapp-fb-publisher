@@ -9,6 +9,7 @@ import pino from 'pino';
 import qrcodeTerminal from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import { config } from './config.js';
+import { saveSettings } from './store.js';
 
 const logger = pino({ level: 'silent' });
 
@@ -41,16 +42,22 @@ export function getWhatsAppStatus() {
 }
 
 /**
- * Start the WhatsApp socket with persistent auth + auto-reconnect.
- * @param {(sock: ReturnType<typeof makeWASocket>) => void} onReady
- * @param {(msg: object) => Promise<void>} onMessage receives each message
+ * Start Baileys with resilient reconnects, automatic auth recovery, and
+ * self-chat event delivery.
+ *
+ * @param {(msg: object, sock: ReturnType<typeof makeWASocket>) => Promise<void>} onMessage receives each message
  */
 export async function startWhatsApp(onMessage) {
   whatsappStatus.connection = 'connecting';
   const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
-  // WhatsApp may address the self-chat using the linked account's LID rather
-  // than the phone-number JID supplied in WHATSAPP_SELF_JID.
-  config.selfLid = state.creds.me?.lid || null;
+
+  if (state.creds.me?.lid) {
+    config.selfLid = state.creds.me.lid.replace(/:\d+(?=@)/, '');
+  }
+  if (state.creds.me?.id && !config.selfJid) {
+    config.selfJid = state.creds.me.id.replace(/:\d+(?=@)/, '');
+  }
+
   const { version } = await fetchLatestBaileysVersion();
 
   let sock = null;
@@ -76,7 +83,19 @@ export async function startWhatsApp(onMessage) {
     let socketOpen = false;
     let socketOpenedAt = 0;
 
-    nextSock.ev.on('creds.update', saveCreds);
+    nextSock.ev.on('creds.update', (update) => {
+      saveCreds();
+      const rawLid = update?.me?.lid || state.creds.me?.lid;
+      if (rawLid) {
+        config.selfLid = rawLid.replace(/:\d+(?=@)/, '');
+        saveSettings({ whatsappSelfLid: config.selfLid });
+      }
+      const rawId = update?.me?.id || state.creds.me?.id;
+      if (rawId) {
+        config.selfJid = rawId.replace(/:\d+(?=@)/, '');
+        saveSettings({ whatsappSelfJid: config.selfJid });
+      }
+    });
 
     nextSock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
       if (qr) {
@@ -94,12 +113,15 @@ export async function startWhatsApp(onMessage) {
         socketOpen = true;
         socketOpenedAt = Math.floor(Date.now() / 1000);
         reconnectAttempts = 0;
-        const sessionJid = nextSock.user?.id || '';
-        if (!config.selfJid && sessionJid) {
+        const sessionJid = nextSock.user?.id || state.creds.me?.id || '';
+        const sessionLid = nextSock.user?.lid || state.creds.me?.lid || '';
+        if (sessionJid) {
           config.selfJid = sessionJid.replace(/:\d+(?=@)/, '');
+          saveSettings({ whatsappSelfJid: config.selfJid });
         }
-        if (nextSock.user?.lid) {
-          config.selfLid = nextSock.user.lid.replace(/:\d+(?=@)/, '');
+        if (sessionLid) {
+          config.selfLid = sessionLid.replace(/:\d+(?=@)/, '');
+          saveSettings({ whatsappSelfLid: config.selfLid });
         }
         const configuredJids = [config.selfJid, config.selfLid].filter(Boolean);
         const normalized = (jid) => jid.replace(/:\d+(?=@)/, '');
@@ -110,7 +132,7 @@ export async function startWhatsApp(onMessage) {
           accountJid: sessionJid,
           lastConnectedAt: new Date().toISOString(),
         });
-        console.log(`✅ WhatsApp connected (self-JID ${selfJidMatches ? 'matches' : 'does not match'} configuration).`);
+        console.log(`✅ WhatsApp connected (self-JID: ${config.selfJid || 'none'}, self-LID: ${config.selfLid || 'none'}).`);
         if (onReadyCallback) onReadyCallback(nextSock);
       }
 

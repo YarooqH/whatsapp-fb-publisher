@@ -13,6 +13,7 @@ import {
   isPublisherPaused,
   testBufferKey,
   fetchGroups,
+  refreshBufferTarget,
 } from './worker.js';
 
 // If storage dir argument is provided (e.g. by Tauri via app_data_dir)
@@ -113,7 +114,8 @@ const server = createServer(async (req, res) => {
       const saved = saveSettings(body);
       updateConfig({
         postingProvider: saved.postingProvider,
-        whatsappSelfJid: saved.whatsappSelfJid,
+        whatsappSelfJid: saved.whatsappSelfJid || config.selfJid,
+        whatsappSelfLid: saved.whatsappSelfLid || config.selfLid,
         whatsappGroupName: saved.whatsappGroupName,
         whatsappGroupJid: saved.whatsappGroupJid,
         whatsappGroupAllowAll: saved.whatsappGroupAllowAll,
@@ -122,6 +124,8 @@ const server = createServer(async (req, res) => {
         bufferChannelId: saved.bufferChannelId,
         catboxUserhash: saved.catboxUserhash,
       });
+
+      await refreshBufferTarget();
 
       broadcastEvent('status', getPublisherStatus());
       return sendJson(res, 200, { success: true, settings: saved });

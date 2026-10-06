@@ -1,5 +1,6 @@
-import { downloadMediaMessage } from '@whiskeysockets/baileys';
+import { downloadMediaMessage, areJidsSameUser } from '@whiskeysockets/baileys';
 import { config, updateConfig, validateConfig } from './config.js';
+import { saveSettings } from './store.js';
 import {
   startWhatsApp,
   stopWhatsApp,
@@ -51,15 +52,22 @@ function addLog(type, message, details = null) {
 }
 
 const normalizeJid = (jid) => jid?.replace(/:\d+(?=@)/, '');
-const configuredSelfJids = (sock) =>
-  [
+
+const configuredSelfJids = (sock) => {
+  const me = sock?.user || sock?.authState?.creds?.me;
+  return [
     config.selfJid,
     config.selfLid,
+    me?.id,
+    me?.lid,
     sock?.user?.id,
     sock?.user?.lid,
+    sock?.authState?.creds?.me?.id,
+    sock?.authState?.creds?.me?.lid,
   ]
     .filter(Boolean)
     .map(normalizeJid);
+};
 
 function atToDate(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
@@ -78,14 +86,52 @@ async function handleMessage(msg, sock) {
   const remoteJid = normalizeJid(msg.key.remoteJid);
   const selfJids = configuredSelfJids(sock);
   const destJid = normalizeJid(msg.message?.deviceSentMessage?.destinationJid);
-  const isSelfChat = selfJids.includes(remoteJid) || Boolean(destJid && selfJids.includes(destJid));
   const isGroupChat = Boolean(config.groupJid && normalizeJid(config.groupJid) === remoteJid);
   const isAnyGroup = remoteJid?.endsWith('@g.us');
 
+  // Multi-tier self-chat verification
+  let isSelfChat = false;
+  for (const s of selfJids) {
+    if (s && (s === remoteJid || areJidsSameUser(s, remoteJid))) {
+      isSelfChat = true;
+      break;
+    }
+    if (destJid && (s === destJid || areJidsSameUser(s, destJid))) {
+      isSelfChat = true;
+      break;
+    }
+  }
+
+  // Check sender identity fields provided by Baileys
+  if (!isSelfChat && msg.key?.fromMe) {
+    const senderLid = normalizeJid(msg.key?.senderLid);
+    const senderPn = normalizeJid(msg.key?.senderPn);
+    for (const s of selfJids) {
+      if ((senderLid && (s === senderLid || areJidsSameUser(s, senderLid))) ||
+          (senderPn && (s === senderPn || areJidsSameUser(s, senderPn)))) {
+        if (remoteJid === senderLid || remoteJid === senderPn || areJidsSameUser(remoteJid, s)) {
+          isSelfChat = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // Safety fallback: If user selected "Message Yourself" (no group configured),
+  // and the message is sent by the user account fromMe in a 1-to-1 LID chat:
+  if (!isSelfChat && msg.key?.fromMe && remoteJid?.endsWith('@lid') && !config.groupJid && !config.groupName) {
+    isSelfChat = true;
+    if (!config.selfLid || config.selfLid !== remoteJid) {
+      config.selfLid = remoteJid;
+      saveSettings({ whatsappSelfLid: remoteJid });
+      addLog('info', `Recognized self-chat LID: ${remoteJid}`);
+    }
+  }
+
   const participantJid = normalizeJid(
-    msg.key.participant || msg.participant || (msg.key.fromMe ? (sock.user?.id || config.selfJid) : null)
+    msg.key.participant || msg.participant || (msg.key.fromMe ? (sock?.user?.id || config.selfJid) : null)
   );
-  const isOwner = msg.key.fromMe || selfJids.includes(participantJid);
+  const isOwner = msg.key.fromMe || selfJids.includes(participantJid) || selfJids.some((s) => areJidsSameUser(s, participantJid));
 
   // Group permission validation
   if (isGroupChat) {
@@ -118,14 +164,17 @@ async function handleMessage(msg, sock) {
   addLog('info', `Received WhatsApp ${isGroupChat ? 'group' : 'self-chat'} ${isImage ? 'image' : 'message'}: ${action}`);
 
   const reply = async (t) => {
-    const selfTarget = config.selfJid || (sock.user?.id ? normalizeJid(sock.user.id) : null);
-    const targetJid = isSelfChat && remoteJid?.endsWith('@lid') && selfTarget ? selfTarget : remoteJid;
+    const selfTarget = config.selfJid || (sock?.user?.id ? normalizeJid(sock.user.id) : null);
     let sent;
     try {
-      sent = await sock.sendMessage(targetJid, { text: t });
+      sent = await sock.sendMessage(remoteJid, { text: t });
     } catch (err) {
-      if (targetJid !== remoteJid) {
-        sent = await sock.sendMessage(remoteJid, { text: t });
+      if (selfTarget && selfTarget !== remoteJid) {
+        try {
+          sent = await sock.sendMessage(selfTarget, { text: t });
+        } catch {
+          throw err;
+        }
       } else {
         throw err;
       }
@@ -169,6 +218,13 @@ async function handleMessage(msg, sock) {
         }
 
         if (config.postingProvider === 'buffer') {
+          if (!bufferTarget?.channel && config.bufferApiKey) {
+            try {
+              bufferTarget = await resolveBufferTarget();
+            } catch (targetErr) {
+              console.warn('Auto-resolving Buffer target failed:', targetErr.message);
+            }
+          }
           if (!bufferTarget?.channel) {
             throw new Error('Buffer target not configured or not yet resolved');
           }
@@ -326,6 +382,20 @@ export function setPublisherPaused(paused) {
 
 export function isPublisherPaused() {
   return isPaused;
+}
+
+/** Explicitly refresh or re-resolve the Buffer channel target */
+export async function refreshBufferTarget() {
+  if (config.postingProvider === 'buffer' && config.bufferApiKey) {
+    try {
+      bufferTarget = await resolveBufferTarget();
+      addLog('success', `Buffer connected: "${bufferTarget.channel.name}" (${bufferTarget.channel.service})`);
+      return bufferTarget;
+    } catch (err) {
+      addLog('warning', `Buffer verification failed: ${err.message}`);
+    }
+  }
+  return null;
 }
 
 /** Test Buffer API Key and return channels */

@@ -28,7 +28,7 @@ const groupAllowAll = Boolean(stored.whatsappGroupAllowAll);
 export const config = {
   postingProvider: stored.postingProvider || (process.env.POSTING_PROVIDER || 'buffer').trim().toLowerCase(),
   selfJid: stored.whatsappSelfJid || process.env.WHATSAPP_SELF_JID?.trim() || '',
-  selfLid: null,
+  selfLid: stored.whatsappSelfLid || null,
 
   // Group chat destination
   groupJid,
@@ -60,12 +60,18 @@ export function setAuthDir(dir) {
 /** Update running config dynamically */
 export function updateConfig(updates) {
   if (updates.postingProvider) config.postingProvider = updates.postingProvider;
-  if (updates.whatsappSelfJid !== undefined) config.selfJid = updates.whatsappSelfJid;
+  if (updates.whatsappSelfJid) config.selfJid = updates.whatsappSelfJid;
+  if (updates.whatsappSelfLid) config.selfLid = updates.whatsappSelfLid;
   if (updates.bufferApiKey !== undefined) config.bufferApiKey = updates.bufferApiKey;
   if (updates.bufferOrgId !== undefined) config.bufferOrgId = updates.bufferOrgId;
   if (updates.bufferChannelId !== undefined) config.bufferChannelId = updates.bufferChannelId;
   if (updates.catboxUserhash !== undefined) config.catboxUserhash = updates.catboxUserhash;
-  if (updates.whatsappGroupName !== undefined) config.groupName = updates.whatsappGroupName;
+  if (updates.whatsappGroupName !== undefined) {
+    config.groupName = updates.whatsappGroupName ? updates.whatsappGroupName.trim() : null;
+    if (!config.groupName) {
+      config.groupJid = null;
+    }
+  }
   if (updates.whatsappGroupJid !== undefined) {
     const raw = updates.whatsappGroupJid?.trim();
     config.groupJid = raw ? (raw.includes('@') ? raw : `${raw}@g.us`) : null;

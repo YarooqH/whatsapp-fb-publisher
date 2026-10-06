@@ -47,6 +47,7 @@ export function loadSettings() {
     bufferOrgId: fileSettings.bufferOrgId || process.env.BUFFER_ORG_ID?.trim() || null,
     bufferChannelId: fileSettings.bufferChannelId || process.env.BUFFER_CHANNEL_ID?.trim() || null,
     whatsappSelfJid: fileSettings.whatsappSelfJid || process.env.WHATSAPP_SELF_JID?.trim() || '',
+    whatsappSelfLid: fileSettings.whatsappSelfLid || null,
     whatsappGroupName: fileSettings.whatsappGroupName || process.env.WHATSAPP_GROUP_NAME?.trim() || '',
     whatsappGroupJid: groupJid,
     whatsappGroupAllowAll: Boolean(
@@ -62,6 +63,10 @@ export function loadSettings() {
 export function saveSettings(newSettings) {
   const current = loadSettings();
   const merged = { ...current, ...newSettings };
+  if (newSettings.whatsappGroupName === '') {
+    merged.whatsappGroupJid = null;
+    merged.whatsappGroupName = '';
+  }
   if (!existsSync(storageDir)) {
     mkdirSync(storageDir, { recursive: true });
   }
