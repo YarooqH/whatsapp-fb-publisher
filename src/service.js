@@ -15,6 +15,8 @@ import {
   fetchGroups,
   refreshBufferTarget,
   unlinkWhatsApp,
+  resolveGroupByName,
+  refreshGroupTarget,
 } from './worker.js';
 
 // If storage dir argument is provided (e.g. by Tauri via app_data_dir)
@@ -125,6 +127,18 @@ const server = createServer(async (req, res) => {
     // Save Settings
     if (pathname === '/api/settings' && req.method === 'POST') {
       const body = await parseJsonBody(req);
+
+      // Auto-resolve group JID if group name was provided without a JID
+      if (body.whatsappGroupName && !body.whatsappGroupJid) {
+        const resolved = await resolveGroupByName(body.whatsappGroupName);
+        if (resolved) {
+          body.whatsappGroupJid = resolved.id;
+          body.whatsappGroupName = resolved.subject;
+        }
+      } else if (!body.whatsappGroupName) {
+        body.whatsappGroupJid = null;
+      }
+
       const saved = saveSettings(body);
       updateConfig({
         postingProvider: saved.postingProvider,
@@ -139,6 +153,7 @@ const server = createServer(async (req, res) => {
         catboxUserhash: saved.catboxUserhash,
       });
 
+      await refreshGroupTarget();
       await refreshBufferTarget();
 
       broadcastEvent('status', getPublisherStatus());

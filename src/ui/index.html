@@ -160,10 +160,14 @@
                 <div class="form-group">
                   <label for="group-name-input">WhatsApp group name</label>
                   <div class="input-with-button">
-                    <input type="text" id="group-name-input" placeholder="e.g. FB Posts Inbox (not case-sensitive)" />
+                    <input type="text" id="group-name-input" placeholder="e.g. fb or FB Posts (not case-sensitive)" />
                     <button id="btn-search-groups" class="btn btn-secondary">Search</button>
                   </div>
-                  <span class="helper-text">We match your group by its title automatically.</span>
+                  <span id="group-search-feedback" class="helper-text">Enter group name and click Search to link your WhatsApp group.</span>
+                  <div id="group-select-container" class="hidden" style="margin-top: 10px;">
+                    <label for="select-matched-group" style="font-size: 12px; font-weight: 500; margin-bottom: 4px; display: block; color: var(--text-secondary);">Select WhatsApp group:</label>
+                    <select id="select-matched-group" class="custom-select"></select>
+                  </div>
                 </div>
                 <div class="form-group">
                   <label class="checkbox-label">
@@ -225,6 +229,7 @@
           <div class="form-group">
             <label for="settings-group-name">Group destination <span class="optional">Optional</span></label>
             <input type="text" id="settings-group-name" placeholder="Group name" />
+            <span id="settings-group-status" class="helper-text"></span>
           </div>
           <div class="form-group">
             <label for="settings-catbox-userhash">Catbox userhash <span class="optional">Optional</span></label>

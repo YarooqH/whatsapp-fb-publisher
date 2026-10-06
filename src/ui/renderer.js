@@ -34,6 +34,9 @@ const el = {
   groupConfigPanel: document.getElementById('group-config-panel'),
   groupNameInput: document.getElementById('group-name-input'),
   btnSearchGroups: document.getElementById('btn-search-groups'),
+  groupSearchFeedback: document.getElementById('group-search-feedback'),
+  groupSelectContainer: document.getElementById('group-select-container'),
+  selectMatchedGroup: document.getElementById('select-matched-group'),
   groupAllowAll: document.getElementById('group-allow-all'),
 
   // Step 4: Preferences
@@ -46,6 +49,7 @@ const el = {
   settingsBufferKey: document.getElementById('settings-buffer-key'),
   settingsBufferStatus: document.getElementById('settings-buffer-status'),
   settingsGroupName: document.getElementById('settings-group-name'),
+  settingsGroupStatus: document.getElementById('settings-group-status'),
   settingsCatboxUserhash: document.getElementById('settings-catbox-userhash'),
   settingsAutostart: document.getElementById('settings-autostart'),
   btnSaveSettingsTab: document.getElementById('btn-save-settings-tab'),
@@ -143,6 +147,14 @@ function updateStatusBadge(status) {
     el.settingsBufferStatus.className = 'helper-text success-text';
   }
 
+  const dest = status.destination || {};
+  if (dest.type === 'group' && dest.groupName && el.settingsGroupStatus) {
+    el.settingsGroupStatus.textContent = dest.groupJid
+      ? `✓ Active group: "${dest.groupName}"`
+      : `Searching for group "${dest.groupName}"…`;
+    el.settingsGroupStatus.className = dest.groupJid ? 'helper-text success-text' : 'helper-text';
+  }
+
   updateSetupProgress(wa, buf);
 }
 
@@ -232,11 +244,14 @@ function renderInitialSettings(settings) {
   if (settings.whatsappGroupName) {
     el.groupNameInput.value = settings.whatsappGroupName;
     el.settingsGroupName.value = settings.whatsappGroupName;
+    appState.selectedGroupName = settings.whatsappGroupName;
+    appState.selectedGroupJid = settings.whatsappGroupJid || null;
     const groupRadio = document.querySelector('input[name="dest-type"][value="group"]');
     if (groupRadio) {
       groupRadio.checked = true;
       groupRadio.dispatchEvent(new Event('change'));
     }
+    searchAndDisplayGroups(settings.whatsappGroupName);
   }
   if (settings.whatsappGroupAllowAll) {
     el.groupAllowAll.checked = true;
@@ -365,40 +380,112 @@ el.selectBufferChannel.addEventListener('change', async () => {
   }
 });
 
-// Search Groups button
-el.btnSearchGroups.addEventListener('click', async () => {
-  const q = el.groupNameInput.value.trim();
-  el.btnSearchGroups.disabled = true;
-  el.btnSearchGroups.textContent = 'Searching…';
+// Search and display WhatsApp groups
+async function searchAndDisplayGroups(query = '') {
+  const q = String(query || el.groupNameInput.value || '').trim();
+  if (el.btnSearchGroups) {
+    el.btnSearchGroups.disabled = true;
+    el.btnSearchGroups.textContent = 'Searching…';
+  }
+  if (el.groupSearchFeedback) {
+    el.groupSearchFeedback.className = 'helper-text';
+    el.groupSearchFeedback.textContent = 'Searching participating WhatsApp groups…';
+  }
 
   try {
     const res = await fetch(`${API_BASE}/api/groups?q=${encodeURIComponent(q)}`);
     const data = await res.json();
-    if (data.groups && data.groups.length) {
-      const names = data.groups.map((g) => `• "${g.subject}" (${g.participantsCount} members)`).join('\n');
-      alert(`Found matching groups:\n${names}`);
-      el.groupNameInput.value = data.groups[0].subject;
+    const groups = data.groups || [];
+
+    if (groups.length > 0) {
+      if (el.selectMatchedGroup) {
+        el.selectMatchedGroup.innerHTML = '';
+        groups.forEach((g) => {
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = `${g.subject} (${g.participantsCount} members)`;
+          el.selectMatchedGroup.appendChild(opt);
+        });
+      }
+
+      // Exact match or first match
+      const matched = groups.find((g) => g.subject.toLowerCase() === q.toLowerCase()) || groups[0];
+      if (el.selectMatchedGroup) el.selectMatchedGroup.value = matched.id;
+      appState.selectedGroupJid = matched.id;
+      appState.selectedGroupName = matched.subject;
+      el.groupNameInput.value = matched.subject;
+      el.settingsGroupName.value = matched.subject;
+
+      if (el.groupSelectContainer) el.groupSelectContainer.classList.remove('hidden');
+      if (el.groupSearchFeedback) {
+        el.groupSearchFeedback.className = 'helper-text success-text';
+        el.groupSearchFeedback.textContent = `✓ Linked to group "${matched.subject}" (${matched.participantsCount} members)`;
+      }
+      if (el.settingsGroupStatus) {
+        el.settingsGroupStatus.className = 'helper-text success-text';
+        el.settingsGroupStatus.textContent = `✓ Linked to group "${matched.subject}"`;
+      }
     } else {
-      alert(`No groups found matching "${q}". Check spelling or create the group on your phone first.`);
+      if (el.groupSelectContainer) el.groupSelectContainer.classList.add('hidden');
+      if (el.groupSearchFeedback) {
+        el.groupSearchFeedback.className = 'helper-text';
+        el.groupSearchFeedback.textContent = q
+          ? `No groups found matching "${q}". Check spelling or send a message in that group on your phone first.`
+          : 'No participating groups found.';
+      }
     }
   } catch (err) {
-    alert(`Failed to search groups: ${err.message}`);
+    if (el.groupSearchFeedback) {
+      el.groupSearchFeedback.className = 'helper-text';
+      el.groupSearchFeedback.textContent = `Failed to search groups: ${err.message}`;
+    }
   } finally {
-    el.btnSearchGroups.disabled = false;
-    el.btnSearchGroups.textContent = 'Search';
+    if (el.btnSearchGroups) {
+      el.btnSearchGroups.disabled = false;
+      el.btnSearchGroups.textContent = 'Search';
+    }
+  }
+}
+
+// Search Groups button
+el.btnSearchGroups.addEventListener('click', () => {
+  searchAndDisplayGroups(el.groupNameInput.value.trim());
+});
+
+// Dropdown group selection change
+el.selectMatchedGroup?.addEventListener('change', () => {
+  const selectedId = el.selectMatchedGroup.value;
+  const opt = el.selectMatchedGroup.options[el.selectMatchedGroup.selectedIndex];
+  const subject = opt ? opt.textContent.replace(/\s\(\d+\smembers\)$/, '') : '';
+
+  appState.selectedGroupJid = selectedId;
+  appState.selectedGroupName = subject;
+  el.groupNameInput.value = subject;
+  el.settingsGroupName.value = subject;
+
+  if (el.groupSearchFeedback) {
+    el.groupSearchFeedback.className = 'helper-text success-text';
+    el.groupSearchFeedback.textContent = `✓ Linked to group "${subject}"`;
+  }
+  if (el.settingsGroupStatus) {
+    el.settingsGroupStatus.className = 'helper-text success-text';
+    el.settingsGroupStatus.textContent = `✓ Linked to group "${subject}"`;
   }
 });
 
 // Save all settings & minimize
 async function saveAllSettings() {
   const destType = document.querySelector('input[name="dest-type"]:checked')?.value || 'self';
+  const groupName = destType === 'group' ? (el.groupNameInput.value.trim() || appState.selectedGroupName || '') : '';
+  const groupJid = destType === 'group' ? (appState.selectedGroupJid || appState.settings?.whatsappGroupJid || null) : null;
+
   const newSettings = {
     postingProvider: 'buffer',
     bufferApiKey: el.bufferApiKey.value.trim(),
     bufferOrgId: appState.selectedOrgId || appState.settings?.bufferOrgId || null,
     bufferChannelId: el.selectBufferChannel.value || appState.selectedChannelId || appState.settings?.bufferChannelId || null,
-    whatsappGroupName: destType === 'group' ? el.groupNameInput.value.trim() : '',
-    whatsappGroupJid: destType === 'group' ? (appState.settings?.whatsappGroupJid || null) : null,
+    whatsappGroupName: groupName,
+    whatsappGroupJid: groupJid,
     whatsappGroupAllowAll: destType === 'group' ? el.groupAllowAll.checked : false,
     catboxUserhash: el.settingsCatboxUserhash ? el.settingsCatboxUserhash.value.trim() : (appState.settings?.catboxUserhash || ''),
     openAtLogin: el.checkAutostart.checked,

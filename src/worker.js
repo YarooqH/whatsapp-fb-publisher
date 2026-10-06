@@ -86,9 +86,27 @@ async function handleMessage(msg, sock) {
 
   const remoteJid = normalizeJid(msg.key.remoteJid);
   const selfJids = configuredSelfJids(sock);
-  const destJid = normalizeJid(msg.message?.deviceSentMessage?.destinationJid);
-  const isGroupChat = Boolean(config.groupJid && normalizeJid(config.groupJid) === remoteJid);
+  let isGroupChat = Boolean(config.groupJid && normalizeJid(config.groupJid) === remoteJid);
   const isAnyGroup = remoteJid?.endsWith('@g.us');
+
+  // Dynamic fallback: If message is from any group and config.groupName is configured
+  if (!isGroupChat && isAnyGroup && config.groupName) {
+    try {
+      let subject = null;
+      if (sock?.groupMetadata) {
+        const meta = await sock.groupMetadata(remoteJid);
+        subject = meta?.subject;
+      }
+      if (subject && (subject.toLowerCase() === config.groupName.toLowerCase() || subject.toLowerCase().includes(config.groupName.toLowerCase()))) {
+        isGroupChat = true;
+        config.groupJid = remoteJid;
+        config.groupName = subject;
+        saveSettings({ whatsappGroupJid: remoteJid, whatsappGroupName: subject });
+        addLog('info', `Dynamically bound active group "${subject}" (${remoteJid})`);
+        if (listeners.onStatus) listeners.onStatus(getPublisherStatus());
+      }
+    } catch {}
+  }
 
   // Multi-tier self-chat verification
   let isSelfChat = false;
@@ -334,19 +352,8 @@ export async function startPublisher(options = {}) {
     addLog('success', 'WhatsApp socket connected and ready.');
 
     // Auto-resolve group name if specified
-    if (config.groupName && !config.groupJid) {
-      try {
-        const matches = await searchGroups(sock, config.groupName);
-        const match =
-          matches.find((g) => g.subject.toLowerCase() === config.groupName.toLowerCase()) ||
-          matches[0];
-        if (match) {
-          config.groupJid = match.id;
-          addLog('info', `Resolved group "${config.groupName}" to ${match.id}`);
-        }
-      } catch (err) {
-        addLog('warning', `Could not auto-resolve group name: ${err.message}`);
-      }
+    if (config.groupName) {
+      await refreshGroupTarget();
     }
 
     // Resolve Buffer target if Buffer API key is configured
@@ -365,9 +372,12 @@ export async function startPublisher(options = {}) {
   isRunning = true;
   addLog('info', 'Starting WhatsApp client…');
 
-  // Immediately resolve Buffer target if key is configured
+  // Immediately resolve targets if configured
   if (config.postingProvider === 'buffer' && config.bufferApiKey) {
     refreshBufferTarget().catch((e) => console.warn('Initial Buffer resolve:', e.message));
+  }
+  if (config.groupName && !config.groupJid) {
+    refreshGroupTarget().catch((e) => console.warn('Initial Group resolve:', e.message));
   }
 
   await startWhatsApp(handleMessage);
@@ -436,6 +446,46 @@ export async function fetchGroups(query = '') {
   const sock = getSocket();
   if (!sock) return [];
   return searchGroups(sock, query);
+}
+
+/** Resolve group by name against participating WhatsApp groups */
+export async function resolveGroupByName(groupName) {
+  if (!groupName) return null;
+  const sock = getSocket();
+  if (!sock) return null;
+  try {
+    const groups = await searchGroups(sock, groupName);
+    const exact = groups.find((g) => g.subject.toLowerCase() === groupName.trim().toLowerCase());
+    return exact || groups[0] || null;
+  } catch (err) {
+    console.error('Failed to resolve group by name:', err.message);
+    return null;
+  }
+}
+
+/** Explicitly refresh or re-resolve the WhatsApp group target by name */
+export async function refreshGroupTarget() {
+  if (!config.groupName) {
+    config.groupJid = null;
+    return null;
+  }
+  const sock = getSocket();
+  if (!sock) return null;
+
+  try {
+    const match = await resolveGroupByName(config.groupName);
+    if (match) {
+      config.groupJid = match.id;
+      config.groupName = match.subject;
+      saveSettings({ whatsappGroupJid: match.id, whatsappGroupName: match.subject });
+      addLog('info', `Resolved group "${config.groupName}" to ${match.id}`);
+      if (listeners.onStatus) listeners.onStatus(getPublisherStatus());
+      return match;
+    }
+  } catch (err) {
+    addLog('warning', `Could not auto-resolve group name "${config.groupName}": ${err.message}`);
+  }
+  return null;
 }
 
 /** Get consolidated health & configuration status */
