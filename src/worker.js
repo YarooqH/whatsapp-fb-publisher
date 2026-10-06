@@ -86,6 +86,10 @@ async function handleMessage(msg, sock) {
 
   const remoteJid = normalizeJid(msg.key.remoteJid);
   const selfJids = configuredSelfJids(sock);
+  const destJid = normalizeJid(
+    msg.message?.deviceSentMessage?.destinationJid ||
+    msg.message?.protocolMessage?.destinationJid
+  );
   let isGroupChat = Boolean(config.groupJid && normalizeJid(config.groupJid) === remoteJid);
   const isAnyGroup = remoteJid?.endsWith('@g.us');
 
@@ -108,42 +112,44 @@ async function handleMessage(msg, sock) {
     } catch {}
   }
 
-  // Multi-tier self-chat verification
+  // Multi-tier self-chat verification (groups can never be self chat)
   let isSelfChat = false;
-  for (const s of selfJids) {
-    if (s && (s === remoteJid || areJidsSameUser(s, remoteJid))) {
-      isSelfChat = true;
-      break;
-    }
-    if (destJid && (s === destJid || areJidsSameUser(s, destJid))) {
-      isSelfChat = true;
-      break;
-    }
-  }
-
-  // Check sender identity fields provided by Baileys
-  if (!isSelfChat && msg.key?.fromMe) {
-    const senderLid = normalizeJid(msg.key?.senderLid);
-    const senderPn = normalizeJid(msg.key?.senderPn);
+  if (!isAnyGroup) {
     for (const s of selfJids) {
-      if ((senderLid && (s === senderLid || areJidsSameUser(s, senderLid))) ||
-          (senderPn && (s === senderPn || areJidsSameUser(s, senderPn)))) {
-        if (remoteJid === senderLid || remoteJid === senderPn || areJidsSameUser(remoteJid, s)) {
-          isSelfChat = true;
-          break;
+      if (s && (s === remoteJid || areJidsSameUser(s, remoteJid))) {
+        isSelfChat = true;
+        break;
+      }
+      if (destJid && (s === destJid || areJidsSameUser(s, destJid))) {
+        isSelfChat = true;
+        break;
+      }
+    }
+
+    // Check sender identity fields provided by Baileys
+    if (!isSelfChat && msg.key?.fromMe) {
+      const senderLid = normalizeJid(msg.key?.senderLid);
+      const senderPn = normalizeJid(msg.key?.senderPn);
+      for (const s of selfJids) {
+        if ((senderLid && (s === senderLid || areJidsSameUser(s, senderLid))) ||
+            (senderPn && (s === senderPn || areJidsSameUser(s, senderPn)))) {
+          if (remoteJid === senderLid || remoteJid === senderPn || areJidsSameUser(remoteJid, s)) {
+            isSelfChat = true;
+            break;
+          }
         }
       }
     }
-  }
 
-  // Safety fallback: If user selected "Message Yourself" (no group configured),
-  // and the message is sent by the user account fromMe in a 1-to-1 LID chat:
-  if (!isSelfChat && msg.key?.fromMe && remoteJid?.endsWith('@lid') && !config.groupJid && !config.groupName) {
-    isSelfChat = true;
-    if (!config.selfLid || config.selfLid !== remoteJid) {
-      config.selfLid = remoteJid;
-      saveSettings({ whatsappSelfLid: remoteJid });
-      addLog('info', `Recognized self-chat LID: ${remoteJid}`);
+    // Safety fallback: If user selected "Message Yourself" (no group configured),
+    // and the message is sent by the user account fromMe in a 1-to-1 LID chat:
+    if (!isSelfChat && msg.key?.fromMe && remoteJid?.endsWith('@lid') && !config.groupJid && !config.groupName) {
+      isSelfChat = true;
+      if (!config.selfLid || config.selfLid !== remoteJid) {
+        config.selfLid = remoteJid;
+        saveSettings({ whatsappSelfLid: remoteJid });
+        addLog('info', `Recognized self-chat LID: ${remoteJid}`);
+      }
     }
   }
 
@@ -183,19 +189,25 @@ async function handleMessage(msg, sock) {
   addLog('info', `Received WhatsApp ${isGroupChat ? 'group' : 'self-chat'} ${isImage ? 'image' : 'message'}: ${action}`);
 
   const reply = async (t) => {
-    const selfTarget = config.selfJid || (sock?.user?.id ? normalizeJid(sock.user.id) : null);
-    let sent;
+    let target = remoteJid;
+    if (isSelfChat && remoteJid?.endsWith('@lid') && config.selfJid) {
+      target = config.selfJid;
+    }
+    let sent = null;
     try {
-      sent = await sock.sendMessage(remoteJid, { text: t });
+      sent = await sock.sendMessage(target, { text: t });
     } catch (err) {
-      if (selfTarget && selfTarget !== remoteJid) {
+      console.warn(`Primary reply to ${target} failed:`, err.message);
+      const fallback = target === remoteJid ? (config.selfJid || remoteJid) : remoteJid;
+      if (fallback && fallback !== target) {
         try {
-          sent = await sock.sendMessage(selfTarget, { text: t });
-        } catch {
-          throw err;
+          sent = await sock.sendMessage(fallback, { text: t });
+        } catch (fbErr) {
+          console.error(`Fallback reply to ${fallback} failed:`, fbErr.message);
+          addLog('error', `Failed to send WhatsApp message: ${fbErr.message}`);
         }
       } else {
-        throw err;
+        addLog('error', `Failed to send WhatsApp message: ${err.message}`);
       }
     }
     if (sent?.key?.id) {
