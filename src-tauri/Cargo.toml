@@ -1,10 +1,10 @@
 [package]
-name = "app"
+name = "relay"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "Relay — WhatsApp to Facebook Publisher"
+authors = ["Relay Contributors"]
+license = "MIT"
+repository = "https://github.com/YarooqH/whatsapp-fb-publisher"
 edition = "2024"
 rust-version = "1.90"
 

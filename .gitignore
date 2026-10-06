@@ -16,6 +16,7 @@ sessions/
 
 # Rust / Tauri build artifacts
 src-tauri/target/
+src-tauri/bin/
 target/
 
 # Local drafts & stores

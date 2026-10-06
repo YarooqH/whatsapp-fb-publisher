@@ -55,7 +55,7 @@ fn find_node_binary() -> PathBuf {
 }
 
 fn find_service_and_cwd() -> Option<(PathBuf, PathBuf)> {
-    // 1. Try relative to current working directory (e.g. from src-tauri or project root)
+    // Relative to current working directory (e.g. from src-tauri or project root)
     let cwd_candidates = [
         ("..", "../src/service.js"),
         (".", "src/service.js"),
@@ -72,7 +72,7 @@ fn find_service_and_cwd() -> Option<(PathBuf, PathBuf)> {
         }
     }
 
-    // 2. Try relative to current executable
+    // Relative to current executable
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
             let exe_candidates = [
@@ -95,6 +95,69 @@ fn find_service_and_cwd() -> Option<(PathBuf, PathBuf)> {
     None
 }
 
+fn find_runtime(app: &tauri::App) -> Option<(PathBuf, PathBuf, PathBuf)> {
+    // Returns (node_binary, service_script, working_directory)
+
+    // 1. Check bundled resource directory (Installed application via NSIS / MSI)
+    if let Ok(res_dir) = app.path().resource_dir() {
+        let node_candidates = [
+            res_dir.join("bin/node.exe"),
+            res_dir.join("node.exe"),
+        ];
+        let service_candidates = [
+            (res_dir.clone(), res_dir.join("src/service.js")),
+            (res_dir.clone(), res_dir.join("service.js")),
+        ];
+        for node in &node_candidates {
+            if node.exists() {
+                for (cwd, script) in &service_candidates {
+                    if script.exists() && cwd.exists() {
+                        return Some((strip_unc(node.clone()), strip_unc(script.clone()), strip_unc(cwd.clone())));
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Check relative to current executable directory (Portable / extracted folder)
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            let node_candidates = [
+                exe_dir.join("bin/node.exe"),
+                exe_dir.join("node.exe"),
+                exe_dir.join("../bin/node.exe"),
+            ];
+            let service_candidates = [
+                (exe_dir.to_path_buf(), exe_dir.join("src/service.js")),
+                (exe_dir.to_path_buf(), exe_dir.join("service.js")),
+                (exe_dir.join(".."), exe_dir.join("../src/service.js")),
+                (exe_dir.join("../.."), exe_dir.join("../../src/service.js")),
+                (exe_dir.join("../../.."), exe_dir.join("../../../src/service.js")),
+            ];
+            for node in &node_candidates {
+                if node.exists() {
+                    for (cwd, script) in &service_candidates {
+                        if script.exists() && cwd.exists() {
+                            let n = node.canonicalize().map(strip_unc).unwrap_or_else(|_| node.clone());
+                            let s = script.canonicalize().map(strip_unc).unwrap_or_else(|_| script.clone());
+                            let c = cwd.canonicalize().map(strip_unc).unwrap_or_else(|_| cwd.clone());
+                            return Some((n, s, c));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Fallback to system node and relative candidate paths (Development mode)
+    let node_bin = find_node_binary();
+    if let Some((script_path, cwd_path)) = find_service_and_cwd() {
+        return Some((node_bin, script_path, cwd_path));
+    }
+
+    None
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -111,9 +174,8 @@ pub fn run() {
             let is_already_running = TcpStream::connect("127.0.0.1:41738").is_ok();
 
             if !is_already_running {
-                if let Some((script_path, cwd_path)) = find_service_and_cwd() {
-                    let node_bin = find_node_binary();
-                    println!("🚀 Spawning Publisher Service: {:?} with {:?} (cwd: {:?})", script_path, node_bin, cwd_path);
+                if let Some((node_bin, script_path, cwd_path)) = find_runtime(app) {
+                    println!("🚀 Spawning Relay Service: {:?} with {:?} (cwd: {:?})", script_path, node_bin, cwd_path);
 
                     let _ = std::fs::create_dir_all(&app_data_dir);
                     let log_path = Path::new(&app_data_dir).join("service.log");
@@ -144,20 +206,20 @@ pub fn run() {
                         }
                     }
                 } else {
-                    eprintln!("✖ Could not locate src/service.js!");
+                    eprintln!("✖ Could not locate Node runtime or service.js!");
                 }
             } else {
                 println!("✓ Publisher service is already active on 127.0.0.1:41738");
             }
 
             // Create System Tray
-            let show_i = MenuItem::with_id(app, "show", "Open Dashboard & Setup", true, None::<&str>)?;
-            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "Open Relay", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Quit Relay", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
             let tray = TrayIconBuilder::new()
                 .menu(&menu)
-                .tooltip("Relay — WhatsApp → Facebook")
+                .tooltip("Relay")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => {
                         app.exit(0);

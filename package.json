@@ -1,7 +1,8 @@
 {
-  "name": "whatsapp-fb-publisher",
+  "name": "relay",
+  "productName": "Relay",
   "version": "0.1.0",
-  "description": "Drop a message in your WhatsApp self-chat → it gets posted to your Facebook Page",
+  "description": "Relay — WhatsApp to Facebook Publisher",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -9,7 +10,7 @@
     "service": "node src/service.js",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "node scripts/prepare-standalone.js && tauri build"
   },
   "engines": {
     "node": ">=18.17"

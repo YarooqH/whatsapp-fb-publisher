@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Relay",
   "version": "0.1.0",
-  "identifier": "com.publisher.whatsappfb",
+  "identifier": "com.relay.whatsappfb",
   "build": {
     "frontendDist": "../src/ui"
   },
@@ -16,7 +16,7 @@
         "minHeight": 600,
         "center": true,
         "theme": "Dark",
-        "backgroundColor": "#090a0c",
+        "backgroundColor": "#090a0d",
         "resizable": true,
         "fullscreen": false
       }
@@ -28,12 +28,26 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "shortDescription": "Relay — WhatsApp to Facebook Publisher",
+    "longDescription": "Publish messages and photos from WhatsApp to Facebook Pages automatically.",
+    "copyright": "Copyright © 2026",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "bin/node.exe": "bin/node.exe",
+      "../src": "src",
+      "../node_modules": "node_modules",
+      "../package.json": "package.json"
+    },
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico"
+      }
+    }
   }
 }

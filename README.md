@@ -93,7 +93,7 @@
 
 ### Option A: Using the Desktop Application (Recommended)
 
-1. **Launch Relay**: Run `app.exe` or start via `npm run tauri:dev`.
+1. **Launch Relay**: Run `Relay_0.1.0_x64-setup.exe` (or standalone `relay.exe`). No Node.js or Git installation required!
 2. **Step 1 — Connect WhatsApp**: Scan the on-screen QR code from WhatsApp on your phone (**Settings → Linked Devices → Link a Device**).
 3. **Step 2 — Connect Facebook via Buffer**:
    - Create a free account at [buffer.com](https://buffer.com) and link your Facebook Page.
@@ -203,11 +203,12 @@ npm run service
 
 ### Building the Desktop Executable
 ```bash
-# Build release binary (app.exe)
+# Build standalone release installer & binary
 npm run tauri:build
 ```
-The compiled Windows binary and installer are output to:
-`src-tauri/target/release/`
+The compiled standalone Windows installer and binary are output to:
+- **Installer**: `src-tauri/target/release/bundle/nsis/Relay_0.1.0_x64-setup.exe` (Self-contained, shareable with any user)
+- **Binary**: `src-tauri/target/release/relay.exe`
 
 ---
 
