@@ -219,6 +219,30 @@ async function handleMessage(msg, sock) {
 
   switch (action) {
     case 'post': {
+      // Enforce strict publishing target: only the selected mode can publish
+      const isGroupMode = Boolean(config.groupJid || config.groupName);
+      if (isGroupMode) {
+        if (!isGroupChat) {
+          if (at) {
+            await reply(
+              `⚠️ Publishing is currently set to WhatsApp group "${config.groupName || 'configured group'}".\nSend scheduled posts in that group, or switch to "Message Yourself" in Relay settings.`
+            );
+          } else {
+            addLog(
+              'info',
+              `Ignored self-chat message — publishing is restricted to group "${config.groupName || 'configured group'}".`
+            );
+          }
+          break;
+        }
+      } else {
+        // "Message Yourself" mode
+        if (!isSelfChat) {
+          addLog('info', 'Ignored group message — publishing is set to "Message Yourself".');
+          break;
+        }
+      }
+
       try {
         let imageUrl = null;
         let imageBuffer = null;
