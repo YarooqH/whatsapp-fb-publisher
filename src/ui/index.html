@@ -131,7 +131,9 @@
           <!-- Step 3: Destination Selection -->
           <div class="card wizard-card" id="step-card-3">
             <div class="card-header">
-              <span class="step-num"><span class="step-num-label">3</span></span>
+              <span class="step-num"><span class="step-num-label">3</span>
+                <svg class="step-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
               <div>
                 <h3>Choose where you post from</h3>
                 <p>Pick the WhatsApp chat Relay should watch for messages and photos.</p>
@@ -160,16 +162,39 @@
                 <div class="form-group">
                   <label for="group-name-input">WhatsApp group name</label>
                   <div class="input-with-button">
-                    <input type="text" id="group-name-input" placeholder="e.g. fb or FB Posts (not case-sensitive)" />
+                    <input type="text" id="group-name-input" placeholder="Type group name, e.g. Fb" />
                     <button id="btn-search-groups" class="btn btn-secondary">Search</button>
                   </div>
-                  <span id="group-search-feedback" class="helper-text">Enter group name and click Search to link your WhatsApp group.</span>
-                  <div id="group-select-container" class="hidden" style="margin-top: 10px;">
-                    <label for="select-matched-group" style="font-size: 12px; font-weight: 500; margin-bottom: 4px; display: block; color: var(--text-secondary);">Select WhatsApp group:</label>
-                    <select id="select-matched-group" class="custom-select"></select>
+                  <span id="group-search-feedback" class="helper-text">Search for any group your WhatsApp account is a member of.</span>
+                </div>
+
+                <!-- Selectable Matching Groups List with Group ID -->
+                <div id="group-results-container" class="group-results-container hidden">
+                  <div class="results-header">
+                    <span class="results-title">Select your WhatsApp group:</span>
+                    <span id="group-results-count" class="results-count">0 found</span>
+                  </div>
+                  <div id="group-cards-list" class="group-cards-list"></div>
+                </div>
+
+                <!-- Active Group Confirmed Summary with Group ID -->
+                <div id="group-active-summary" class="group-active-summary hidden">
+                  <div class="summary-check-icon">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="summary-content">
+                    <div class="summary-name-row">
+                      <span class="summary-title" id="summary-group-name">Fb</span>
+                      <span class="summary-tag">Linked Group</span>
+                    </div>
+                    <div class="summary-id-row">
+                      <span class="summary-label">Group ID:</span>
+                      <code id="summary-group-jid" class="summary-jid">120363427688077122@g.us</code>
+                    </div>
                   </div>
                 </div>
-                <div class="form-group">
+
+                <div class="form-group" style="margin-top: 14px;">
                   <label class="checkbox-label">
                     <input type="checkbox" id="group-allow-all" />
                     <span>Let any group member publish (leave unchecked for owner only)</span>
@@ -227,8 +252,12 @@
             <span id="settings-buffer-status" class="helper-text"></span>
           </div>
           <div class="form-group">
-            <label for="settings-group-name">Group destination <span class="optional">Optional</span></label>
-            <input type="text" id="settings-group-name" placeholder="Group name" />
+            <label for="settings-group-name">WhatsApp group name <span class="optional">Optional</span></label>
+            <input type="text" id="settings-group-name" placeholder="e.g. Fb" />
+          </div>
+          <div class="form-group">
+            <label for="settings-group-jid">WhatsApp group ID <span class="optional">Auto-resolved</span></label>
+            <input type="text" id="settings-group-jid" disabled class="input-disabled muted-mono" placeholder="No group linked" />
             <span id="settings-group-status" class="helper-text"></span>
           </div>
           <div class="form-group">

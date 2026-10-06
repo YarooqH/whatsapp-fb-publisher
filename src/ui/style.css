@@ -934,6 +934,222 @@ input[type="checkbox"]:checked::after {
   display: none !important;
 }
 
+/* ── Group Selection Cards & Summary ───────────────────────────────────────── */
+.group-results-container {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.results-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.results-count {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.group-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.group-card-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.group-card-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-hover);
+}
+
+.group-card-item.selected {
+  background: rgba(52, 211, 153, 0.06);
+  border-color: rgba(52, 211, 153, 0.4);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.2);
+}
+
+.group-card-radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-hover);
+  background: var(--bg-input);
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.group-card-item.selected .group-card-radio {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+.group-card-item.selected .group-card-radio::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #090a0d;
+}
+
+.group-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.group-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.group-card-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-card-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 7px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.group-card-jid-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.jid-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.jid-mono {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 11.5px;
+  color: #a7f3d0;
+  background: rgba(52, 211, 153, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: -0.01em;
+  word-break: break-all;
+}
+
+/* Active Selected Group Summary Banner */
+.group-active-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(52, 211, 153, 0.06);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  border-radius: var(--radius-sm);
+  animation: fade-up 0.25s ease both;
+}
+
+.summary-check-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--success);
+  flex-shrink: 0;
+}
+
+.summary-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #6ee7b7;
+}
+
+.summary-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--success);
+  background: rgba(52, 211, 153, 0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.summary-id-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.summary-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.summary-jid {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 11.5px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
 @media (max-width: 860px) {
   .app-shell { grid-template-columns: 76px 1fr; }
   .brand-text, .tab-btn span, .sidebar-note { display: none; }
