@@ -1,0 +1,12 @@
+{
+  "postingProvider": "buffer",
+  "bufferApiKey": "",
+  "bufferOrgId": null,
+  "bufferChannelId": null,
+  "whatsappSelfJid": "",
+  "whatsappGroupName": "",
+  "whatsappGroupJid": null,
+  "whatsappGroupAllowAll": false,
+  "catboxUserhash": "",
+  "openAtLogin": true
+}

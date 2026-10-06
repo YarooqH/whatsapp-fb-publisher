@@ -1,0 +1,39 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Relay",
+  "version": "0.1.0",
+  "identifier": "com.publisher.whatsappfb",
+  "build": {
+    "frontendDist": "../src/ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Relay",
+        "width": 1020,
+        "height": 760,
+        "minWidth": 780,
+        "minHeight": 600,
+        "center": true,
+        "theme": "Dark",
+        "backgroundColor": "#090a0c",
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

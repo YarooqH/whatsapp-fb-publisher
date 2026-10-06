@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment & Credentials — NEVER commit secrets or user tokens
+.env
+.env.local
+.env.*.local
+settings.json
+
+# Baileys session — NEVER commit this (it IS your WhatsApp login)
+auth_info_baileys/
+auth_info_baileys*/
+sessions/
+
+# Rust / Tauri build artifacts
+src-tauri/target/
+target/
+
+# Local drafts & stores
+drafts.json
+
+# Logs & temp files
+logs/
+*.log
+scratch/
+graphify-out/
+.dist/
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+*.tmp
+.vscode/
+.idea/
