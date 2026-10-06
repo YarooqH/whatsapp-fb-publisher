@@ -42,7 +42,9 @@ const el = {
 
   // Settings Tab
   settingsSelfJid: document.getElementById('settings-self-jid'),
+  btnSettingsUnlinkWa: document.getElementById('btn-settings-unlink-wa'),
   settingsBufferKey: document.getElementById('settings-buffer-key'),
+  settingsBufferStatus: document.getElementById('settings-buffer-status'),
   settingsGroupName: document.getElementById('settings-group-name'),
   settingsCatboxUserhash: document.getElementById('settings-catbox-userhash'),
   settingsAutostart: document.getElementById('settings-autostart'),
@@ -136,6 +138,11 @@ function updateStatusBadge(status) {
     el.waConnectedBox.classList.add('hidden');
   }
 
+  if (buf.isReady && el.settingsBufferStatus) {
+    el.settingsBufferStatus.textContent = `✓ Active channel: "${buf.channelName}"${buf.orgName ? ` (${buf.orgName})` : ''}`;
+    el.settingsBufferStatus.className = 'helper-text success-text';
+  }
+
   updateSetupProgress(wa, buf);
 }
 
@@ -220,6 +227,7 @@ function renderInitialSettings(settings) {
   if (settings.bufferApiKey) {
     el.bufferApiKey.value = settings.bufferApiKey;
     el.settingsBufferKey.value = settings.bufferApiKey;
+    verifyAndConnectBuffer(settings.bufferApiKey, false, settings.bufferChannelId);
   }
   if (settings.whatsappGroupName) {
     el.groupNameInput.value = settings.whatsappGroupName;
@@ -242,15 +250,13 @@ function renderInitialSettings(settings) {
   }
 }
 
-// Test Buffer Key button
-el.btnTestBuffer.addEventListener('click', async () => {
-  const key = el.bufferApiKey.value.trim();
-  if (!key) {
-    alert('Please enter a Buffer API key first.');
-    return;
+/** Verify Buffer key, populate channels, update UI and optionally auto-save */
+async function verifyAndConnectBuffer(key, autoSave = false, preferredChannelId = null) {
+  if (!key) return false;
+  if (autoSave) {
+    el.btnTestBuffer.disabled = true;
+    el.btnTestBuffer.textContent = 'Verifying…';
   }
-  el.btnTestBuffer.disabled = true;
-  el.btnTestBuffer.textContent = 'Verifying…';
 
   try {
     const res = await fetch(`${API_BASE}/api/test-buffer`, {
@@ -264,8 +270,10 @@ el.btnTestBuffer.addEventListener('click', async () => {
     el.selectBufferChannel.innerHTML = '';
     const fb = data.facebookChannels || [];
     if (!fb.length) {
-      alert('Connected to Buffer, but no Facebook Page was found! Connect a Facebook Page in your Buffer dashboard first.');
-      return;
+      if (autoSave) {
+        alert('Connected to Buffer, but no Facebook Page was found! Connect a Facebook Page in your Buffer dashboard first.');
+      }
+      return false;
     }
 
     fb.forEach((c) => {
@@ -275,15 +283,85 @@ el.btnTestBuffer.addEventListener('click', async () => {
       el.selectBufferChannel.appendChild(opt);
     });
 
+    const targetChannelId = preferredChannelId && fb.some((c) => c.id === preferredChannelId)
+      ? preferredChannelId
+      : fb[0].id;
+
+    el.selectBufferChannel.value = targetChannelId;
     el.bufferChannelsContainer.classList.remove('hidden');
-    el.bufferChannelInfo.textContent = `✓ Connected to organization "${data.organization.name}".`;
-    appState.selectedChannelId = fb[0].id;
+
+    const activeChannel = fb.find((c) => c.id === targetChannelId) || fb[0];
+    el.bufferChannelInfo.textContent = `✓ Connected to "${data.organization.name}" → ${activeChannel.name}`;
+
+    if (el.settingsBufferStatus) {
+      el.settingsBufferStatus.textContent = `✓ Connected to "${data.organization.name}" (${activeChannel.name})`;
+      el.settingsBufferStatus.className = 'helper-text success-text';
+    }
+
+    appState.selectedChannelId = targetChannelId;
     appState.selectedOrgId = data.organization.id;
+
+    document.getElementById('step-card-2')?.classList.add('done');
+    const waDone = appState.status?.whatsapp?.connection === 'open';
+    const bar = document.getElementById('setup-progress-bar');
+    if (bar) bar.style.width = `${(Number(waDone) + 1) * 50}%`;
+
+    if (autoSave) {
+      // Auto-persist immediately so user never loses their credentials
+      await fetch(`${API_BASE}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postingProvider: 'buffer',
+          bufferApiKey: key,
+          bufferOrgId: data.organization.id,
+          bufferChannelId: targetChannelId,
+        }),
+      });
+      el.settingsBufferKey.value = key;
+    }
+
+    return true;
   } catch (err) {
-    alert(`Buffer connection failed:\n${err.message}`);
+    if (autoSave) {
+      alert(`Buffer connection failed:\n${err.message}`);
+    }
+    return false;
   } finally {
-    el.btnTestBuffer.disabled = false;
-    el.btnTestBuffer.textContent = 'Test & Connect';
+    if (autoSave) {
+      el.btnTestBuffer.disabled = false;
+      el.btnTestBuffer.textContent = 'Test & Connect';
+    }
+  }
+}
+
+// Test Buffer Key button
+el.btnTestBuffer.addEventListener('click', async () => {
+  const key = el.bufferApiKey.value.trim();
+  if (!key) {
+    alert('Please enter a Buffer API key first.');
+    return;
+  }
+  await verifyAndConnectBuffer(key, true);
+});
+
+// Auto-save when user chooses a different Facebook Page
+el.selectBufferChannel.addEventListener('change', async () => {
+  const newChannelId = el.selectBufferChannel.value;
+  appState.selectedChannelId = newChannelId;
+  const key = el.bufferApiKey.value.trim();
+  if (key && appState.selectedOrgId) {
+    try {
+      await fetch(`${API_BASE}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bufferApiKey: key,
+          bufferOrgId: appState.selectedOrgId,
+          bufferChannelId: newChannelId,
+        }),
+      });
+    } catch {}
   }
 });
 
@@ -382,17 +460,53 @@ el.btnMinimizeNow.addEventListener('click', async () => {
   }
 });
 
-// Re-link WhatsApp
-el.btnRelinkWa.addEventListener('click', async () => {
-  if (!confirm('Are you sure you want to disconnect and link a new WhatsApp number?')) return;
+// Unlink WhatsApp (from Setup card or Settings tab)
+async function handleUnlinkWhatsApp(triggerBtn) {
+  const confirmed = confirm(
+    'Are you sure you want to unlink this WhatsApp account?\n\n' +
+    'This will securely log out the companion session from WhatsApp servers, ' +
+    'remove all saved credentials, and generate a new QR code to link a different account.'
+  );
+  if (!confirmed) return;
+
+  const originalText = triggerBtn ? triggerBtn.textContent : 'Unlink';
+  if (triggerBtn) {
+    triggerBtn.disabled = true;
+    triggerBtn.textContent = 'Unlinking…';
+  }
+
   try {
-    await fetch(`${API_BASE}/api/relink`, { method: 'POST' });
+    const res = await fetch(`${API_BASE}/api/relink`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Server error');
+
+    // Reset WhatsApp UI state
     el.waConnectedBox.classList.add('hidden');
     el.qrLoadingBox.classList.remove('hidden');
+    el.qrImageBox.classList.add('hidden');
+    el.settingsSelfJid.value = '';
+    el.waConnectedJid.textContent = '';
+    document.getElementById('step-card-1')?.classList.remove('done');
+
+    // Switch to Setup tab so user sees the new QR code
+    el.tabs.forEach((t) => t.classList.remove('active'));
+    el.panes.forEach((p) => p.classList.remove('active'));
+    const setupTab = document.querySelector('.tab-btn[data-tab="tab-setup"]');
+    const setupPane = document.getElementById('tab-setup');
+    if (setupTab) setupTab.classList.add('active');
+    if (setupPane) setupPane.classList.add('active');
   } catch (err) {
-    alert(`Failed to relink: ${err.message}`);
+    alert(`Failed to unlink WhatsApp: ${err.message}`);
+  } finally {
+    if (triggerBtn) {
+      triggerBtn.disabled = false;
+      triggerBtn.textContent = originalText;
+    }
   }
-});
+}
+
+el.btnRelinkWa?.addEventListener('click', (e) => handleUnlinkWhatsApp(e.currentTarget));
+el.btnSettingsUnlinkWa?.addEventListener('click', (e) => handleUnlinkWhatsApp(e.currentTarget));
 
 // ── Real-time Server-Sent Events (SSE) ─────────────────────────────────────────
 function setupEventStream() {

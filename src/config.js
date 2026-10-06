@@ -49,7 +49,9 @@ export const config = {
   catboxUserhash: stored.catboxUserhash || process.env.CATBOX_USERHASH?.trim() || '',
 
   port: process.env.PORT ? Number(process.env.PORT) : null,
-  authDir: join(ROOT, 'auth_info_baileys'),
+  authDir: process.env.PUBLISHER_DATA_DIR?.trim()
+    ? join(process.env.PUBLISHER_DATA_DIR.trim(), 'auth_info_baileys')
+    : join(ROOT, 'auth_info_baileys'),
 };
 
 /** Set authDir dynamically (e.g. into userData for packaged app) */

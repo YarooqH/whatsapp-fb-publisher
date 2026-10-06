@@ -4,6 +4,7 @@ import { saveSettings } from './store.js';
 import {
   startWhatsApp,
   stopWhatsApp,
+  logoutWhatsApp,
   getWhatsAppStatus,
   onQr,
   onStatus,
@@ -363,6 +364,12 @@ export async function startPublisher(options = {}) {
 
   isRunning = true;
   addLog('info', 'Starting WhatsApp client…');
+
+  // Immediately resolve Buffer target if key is configured
+  if (config.postingProvider === 'buffer' && config.bufferApiKey) {
+    refreshBufferTarget().catch((e) => console.warn('Initial Buffer resolve:', e.message));
+  }
+
   await startWhatsApp(handleMessage);
 }
 
@@ -371,6 +378,13 @@ export async function stopPublisher() {
   isRunning = false;
   await stopWhatsApp();
   addLog('info', 'Publisher stopped.');
+}
+
+/** Fully unlink WhatsApp and wipe credentials */
+export async function unlinkWhatsApp() {
+  isRunning = false;
+  await logoutWhatsApp();
+  addLog('info', 'WhatsApp account unlinked and local session purged.');
 }
 
 /** Pause or resume publishing */
@@ -390,10 +404,16 @@ export async function refreshBufferTarget() {
     try {
       bufferTarget = await resolveBufferTarget();
       addLog('success', `Buffer connected: "${bufferTarget.channel.name}" (${bufferTarget.channel.service})`);
+      if (listeners.onStatus) listeners.onStatus(getPublisherStatus());
       return bufferTarget;
     } catch (err) {
       addLog('warning', `Buffer verification failed: ${err.message}`);
+      bufferTarget = null;
+      if (listeners.onStatus) listeners.onStatus(getPublisherStatus());
     }
+  } else {
+    bufferTarget = null;
+    if (listeners.onStatus) listeners.onStatus(getPublisherStatus());
   }
   return null;
 }

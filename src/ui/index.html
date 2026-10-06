@@ -212,11 +212,15 @@
         <div class="card">
           <div class="form-group">
             <label for="settings-self-jid">WhatsApp account</label>
-            <input type="text" id="settings-self-jid" disabled class="input-disabled" />
+            <div class="input-with-button">
+              <input type="text" id="settings-self-jid" disabled class="input-disabled" />
+              <button id="btn-settings-unlink-wa" class="btn btn-secondary">Unlink</button>
+            </div>
           </div>
           <div class="form-group">
             <label for="settings-buffer-key">Buffer API key</label>
-            <input type="password" id="settings-buffer-key" />
+            <input type="password" id="settings-buffer-key" placeholder="Paste your Buffer API key" />
+            <span id="settings-buffer-status" class="helper-text"></span>
           </div>
           <div class="form-group">
             <label for="settings-group-name">Group destination <span class="optional">Optional</span></label>

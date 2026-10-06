@@ -3,7 +3,8 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   DisconnectReason,
 } from '@whiskeysockets/baileys';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, rmSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import qrcodeTerminal from 'qrcode-terminal';
@@ -23,6 +24,9 @@ const whatsappStatus = {
 
 let qrCallback = null;
 let statusCallback = null;
+let sock = null;
+let reconnectAttempts = 0;
+let reconnectTimer = null;
 
 export function onQr(cb) {
   qrCallback = cb;
@@ -60,9 +64,11 @@ export async function startWhatsApp(onMessage) {
 
   const { version } = await fetchLatestBaileysVersion();
 
-  let sock = null;
-  let reconnectAttempts = 0;
-  let reconnectTimer = null;
+  reconnectAttempts = 0;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
 
   // Create a socket and attach all listeners to that socket. This must happen
   // for every reconnect; Baileys does not carry listeners over to a new socket.
@@ -258,6 +264,12 @@ export async function searchGroups(sock, query = '') {
 
 /** Disconnect and stop the WhatsApp client. */
 export async function stopWhatsApp() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectAttempts = 0;
+
   if (sock) {
     try {
       sock.ev.removeAllListeners();
@@ -266,6 +278,75 @@ export async function stopWhatsApp() {
     sock = null;
   }
   notifyStatus({ connection: 'idle' });
+}
+
+/** Fully logout, remove companion device from WhatsApp servers, and wipe credentials from disk. */
+export async function logoutWhatsApp() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectAttempts = 0;
+
+  if (sock) {
+    try {
+      console.log('Logging out companion device from WhatsApp server...');
+      await sock.logout('User unlinked WhatsApp');
+    } catch (err) {
+      console.warn('WhatsApp server logout signal error (closing socket):', err.message);
+      try {
+        sock.end(undefined);
+      } catch {}
+    }
+    try {
+      sock.ev.removeAllListeners();
+    } catch {}
+    sock = null;
+  }
+
+  // Clear running configuration and persistent settings
+  config.selfJid = '';
+  config.selfLid = null;
+  saveSettings({ whatsappSelfJid: '', whatsappSelfLid: null });
+
+  // Wait a moment for file descriptors on Windows to release
+  await new Promise((r) => setTimeout(r, 800));
+
+  // Purge auth directory completely
+  if (existsSync(config.authDir)) {
+    // Specifically delete creds.json first to invalidate credentials immediately
+    const credsPath = join(config.authDir, 'creds.json');
+    if (existsSync(credsPath)) {
+      try { rmSync(credsPath, { force: true }); } catch {}
+    }
+
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        rmSync(config.authDir, { recursive: true, force: true });
+        console.log('✓ Cleared auth directory:', config.authDir);
+        break;
+      } catch (err) {
+        try {
+          const files = readdirSync(config.authDir);
+          for (const f of files) {
+            try {
+              rmSync(join(config.authDir, f), { recursive: true, force: true });
+            } catch {}
+          }
+        } catch {}
+        if (attempt < 4) {
+          await new Promise((r) => setTimeout(r, 300 * attempt));
+        }
+      }
+    }
+  }
+
+  notifyStatus({
+    connection: 'idle',
+    selfJidMatches: false,
+    accountJid: null,
+    lastConnectedAt: null,
+  });
 }
 
 export function getSocket() {

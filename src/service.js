@@ -14,6 +14,7 @@ import {
   testBufferKey,
   fetchGroups,
   refreshBufferTarget,
+  unlinkWhatsApp,
 } from './worker.js';
 
 // If storage dir argument is provided (e.g. by Tauri via app_data_dir)
@@ -21,6 +22,19 @@ const customDir = process.env.PUBLISHER_DATA_DIR;
 if (customDir) {
   setStorageDir(customDir);
   setAuthDir(join(customDir, 'auth_info_baileys'));
+  const loaded = loadSettings();
+  updateConfig({
+    postingProvider: loaded.postingProvider,
+    whatsappSelfJid: loaded.whatsappSelfJid,
+    whatsappSelfLid: loaded.whatsappSelfLid,
+    whatsappGroupName: loaded.whatsappGroupName,
+    whatsappGroupJid: loaded.whatsappGroupJid,
+    whatsappGroupAllowAll: loaded.whatsappGroupAllowAll,
+    bufferApiKey: loaded.bufferApiKey,
+    bufferOrgId: loaded.bufferOrgId,
+    bufferChannelId: loaded.bufferChannelId,
+    catboxUserhash: loaded.catboxUserhash,
+  });
 }
 
 const PORT = Number(process.env.PUBLISHER_PORT || 41738);
@@ -154,21 +168,21 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, { success: true, isPaused: !current });
     }
 
-    // Relink WhatsApp (clear auth session and restart)
+    // Relink / Unlink WhatsApp (logout companion device, purge session, and show new QR)
     if (pathname === '/api/relink' && req.method === 'POST') {
-      await stopPublisher();
-      const authDir = config.authDir;
-      if (existsSync(authDir)) {
-        try {
-          rmSync(authDir, { recursive: true, force: true });
-        } catch {}
+      try {
+        await unlinkWhatsApp();
+        await startPublisher({
+          onQr: (_qr, dataUrl) => broadcastEvent('qr', { dataUrl }),
+          onStatus: (status) => broadcastEvent('status', status),
+          onLog: (log) => broadcastEvent('log', log),
+        });
+        broadcastEvent('status', getPublisherStatus());
+        return sendJson(res, 200, { success: true });
+      } catch (err) {
+        console.error('Relink error:', err);
+        return sendJson(res, 500, { success: false, error: err.message });
       }
-      await startPublisher({
-        onQr: (_qr, dataUrl) => broadcastEvent('qr', { dataUrl }),
-        onStatus: (status) => broadcastEvent('status', status),
-        onLog: (log) => broadcastEvent('log', log),
-      });
-      return sendJson(res, 200, { success: true });
     }
 
     // Health check

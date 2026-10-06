@@ -5,11 +5,18 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-let storageDir = ROOT;
+const envDataDir = process.env.PUBLISHER_DATA_DIR?.trim();
+let storageDir = envDataDir && existsSync(envDataDir) ? envDataDir : (envDataDir || ROOT);
+if (envDataDir && !existsSync(envDataDir)) {
+  try {
+    mkdirSync(envDataDir, { recursive: true });
+  } catch {}
+}
 
-/** Configure the base storage directory (e.g. app.getPath('userData') in Electron). */
+/** Configure the base storage directory (e.g. app.getPath('userData') in Electron/Tauri). */
 export function setStorageDir(dir) {
-  storageDir = dir;
+  if (!dir) return;
+  storageDir = dir.trim();
   if (!existsSync(storageDir)) {
     mkdirSync(storageDir, { recursive: true });
   }
