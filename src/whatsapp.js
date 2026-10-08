@@ -11,6 +11,9 @@ import qrcodeTerminal from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import { config } from './config.js';
 import { saveSettings } from './store.js';
+import { applyLibsignalPatches } from './libsignal-patch.js';
+
+applyLibsignalPatches();
 
 const logger = pino({ level: 'silent' });
 
@@ -139,6 +142,15 @@ export async function startWhatsApp(onMessage) {
           lastConnectedAt: new Date().toISOString(),
         });
         console.log(`✅ WhatsApp connected (self-JID: ${config.selfJid || 'none'}, self-LID: ${config.selfLid || 'none'}).`);
+
+        // Proactively verify/assert sessions with self-account devices to avoid missing session record errors
+        const selfTargets = [config.selfJid, config.selfLid].filter(Boolean);
+        if (selfTargets.length && typeof nextSock.assertSessions === 'function') {
+          nextSock.assertSessions(selfTargets, false).catch((err) => {
+            console.warn('[whatsapp] assertSessions check warning:', err.message);
+          });
+        }
+
         if (onReadyCallback) onReadyCallback(nextSock);
       }
 

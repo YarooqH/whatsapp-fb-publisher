@@ -141,9 +141,8 @@ async function handleMessage(msg, sock) {
       }
     }
 
-    // Safety fallback: If user selected "Message Yourself" (no group configured),
-    // and the message is sent by the user account fromMe in a 1-to-1 LID chat:
-    if (!isSelfChat && msg.key?.fromMe && remoteJid?.endsWith('@lid') && !config.groupJid && !config.groupName) {
+    // Safety fallback: If message is sent fromMe in a 1-to-1 LID chat
+    if (!isSelfChat && msg.key?.fromMe && remoteJid?.endsWith('@lid')) {
       isSelfChat = true;
       if (!config.selfLid || config.selfLid !== remoteJid) {
         config.selfLid = remoteJid;
@@ -165,10 +164,10 @@ async function handleMessage(msg, sock) {
       return;
     }
   } else if (!isSelfChat) {
-    // Unconfigured group probe for #group / #groupid
+    // Unconfigured group probe for #group / #groupid / #ping / #help
     if (isAnyGroup && isOwner) {
       const probe = (extractText(msg) || '').trim().toLowerCase();
-      if (!probe.startsWith('#group') && !probe.startsWith('#findgroup')) {
+      if (!probe.startsWith('#group') && !probe.startsWith('#findgroup') && !probe.startsWith('#ping') && !probe.startsWith('#help')) {
         return;
       }
     } else {
@@ -219,28 +218,14 @@ async function handleMessage(msg, sock) {
 
   switch (action) {
     case 'post': {
-      // Enforce strict publishing target: only the selected mode can publish
-      const isGroupMode = Boolean(config.groupJid || config.groupName);
-      if (isGroupMode) {
-        if (!isGroupChat) {
-          if (at) {
-            await reply(
-              `⚠️ Publishing is currently set to WhatsApp group "${config.groupName || 'configured group'}".\nSend scheduled posts in that group, or switch to "Message Yourself" in Relay settings.`
-            );
-          } else {
-            addLog(
-              'info',
-              `Ignored self-chat message — publishing is restricted to group "${config.groupName || 'configured group'}".`
-            );
-          }
-          break;
+      // Allow posting from self-chat OR from the configured group chat
+      if (!isSelfChat && !isGroupChat) {
+        if (isAnyGroup) {
+          addLog('info', `Ignored post from unconfigured group (${remoteJid}).`);
+        } else {
+          addLog('info', `Ignored post from unconfigured chat (${remoteJid || 'unknown'}).`);
         }
-      } else {
-        // "Message Yourself" mode
-        if (!isSelfChat) {
-          addLog('info', 'Ignored group message — publishing is set to "Message Yourself".');
-          break;
-        }
+        break;
       }
 
       try {

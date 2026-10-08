@@ -582,8 +582,10 @@ el.btnSearchGroups.addEventListener('click', () => {
 // Save all settings & minimize
 async function saveAllSettings() {
   const destType = document.querySelector('input[name="dest-type"]:checked')?.value || 'self';
-  const groupName = destType === 'group' ? (el.groupNameInput.value.trim() || appState.selectedGroupName || '') : '';
-  const groupJid = destType === 'group' ? (appState.selectedGroupJid || appState.settings?.whatsappGroupJid || null) : null;
+  const inputGroupName = el.groupNameInput?.value.trim() || el.settingsGroupName?.value.trim() || '';
+  const isGroup = destType === 'group' || Boolean(inputGroupName);
+  const groupName = isGroup ? (inputGroupName || appState.selectedGroupName || appState.settings?.whatsappGroupName || '') : '';
+  const groupJid = isGroup ? (appState.selectedGroupJid || appState.settings?.whatsappGroupJid || null) : null;
 
   const newSettings = {
     postingProvider: 'buffer',
@@ -592,7 +594,7 @@ async function saveAllSettings() {
     bufferChannelId: el.selectBufferChannel.value || appState.selectedChannelId || appState.settings?.bufferChannelId || null,
     whatsappGroupName: groupName,
     whatsappGroupJid: groupJid,
-    whatsappGroupAllowAll: destType === 'group' ? el.groupAllowAll.checked : false,
+    whatsappGroupAllowAll: isGroup ? el.groupAllowAll.checked : false,
     catboxUserhash: el.settingsCatboxUserhash ? el.settingsCatboxUserhash.value.trim() : (appState.settings?.catboxUserhash || ''),
     openAtLogin: el.checkAutostart.checked,
   };
@@ -634,6 +636,13 @@ el.btnSaveSettingsTab.addEventListener('click', () => {
   el.bufferApiKey.value = el.settingsBufferKey.value;
   el.groupNameInput.value = el.settingsGroupName.value;
   el.checkAutostart.checked = el.settingsAutostart.checked;
+  if (el.settingsGroupName.value.trim()) {
+    const groupRadio = document.querySelector('input[name="dest-type"][value="group"]');
+    if (groupRadio) {
+      groupRadio.checked = true;
+      groupRadio.dispatchEvent(new Event('change'));
+    }
+  }
   saveAllSettings();
 });
 
