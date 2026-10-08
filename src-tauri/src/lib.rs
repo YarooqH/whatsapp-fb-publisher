@@ -105,6 +105,7 @@ fn find_runtime(app: &tauri::App) -> Option<(PathBuf, PathBuf, PathBuf)> {
             res_dir.join("node.exe"),
         ];
         let service_candidates = [
+            (res_dir.clone(), res_dir.join("dist/service.js")),
             (res_dir.clone(), res_dir.join("src/service.js")),
             (res_dir.clone(), res_dir.join("service.js")),
         ];
@@ -128,10 +129,14 @@ fn find_runtime(app: &tauri::App) -> Option<(PathBuf, PathBuf, PathBuf)> {
                 exe_dir.join("../bin/node.exe"),
             ];
             let service_candidates = [
+                (exe_dir.to_path_buf(), exe_dir.join("dist/service.js")),
                 (exe_dir.to_path_buf(), exe_dir.join("src/service.js")),
                 (exe_dir.to_path_buf(), exe_dir.join("service.js")),
+                (exe_dir.join(".."), exe_dir.join("../dist/service.js")),
                 (exe_dir.join(".."), exe_dir.join("../src/service.js")),
+                (exe_dir.join("../.."), exe_dir.join("../../dist/service.js")),
                 (exe_dir.join("../.."), exe_dir.join("../../src/service.js")),
+                (exe_dir.join("../../.."), exe_dir.join("../../../dist/service.js")),
                 (exe_dir.join("../../.."), exe_dir.join("../../../src/service.js")),
             ];
             for node in &node_candidates {
@@ -180,8 +185,19 @@ pub fn run() {
                     let _ = std::fs::create_dir_all(&app_data_dir);
                     let log_path = Path::new(&app_data_dir).join("service.log");
 
+                    // Rotate log if it exceeds 2MB to prevent unbounded disk growth
+                    if let Ok(meta) = std::fs::metadata(&log_path) {
+                        if meta.len() > 2 * 1024 * 1024 {
+                            let backup_path = Path::new(&app_data_dir).join("service.log.old");
+                            let _ = std::fs::rename(&log_path, backup_path);
+                        }
+                    }
+
                     let mut cmd = Command::new(&node_bin);
-                    cmd.arg(&script_path)
+                    cmd.arg("--max-old-space-size=64")
+                        .arg("--max-semi-space-size=2")
+                        .arg("--optimize-for-size")
+                        .arg(&script_path)
                         .current_dir(&cwd_path)
                         .env("PUBLISHER_DATA_DIR", &app_data_dir);
 

@@ -87,6 +87,9 @@ export async function startWhatsApp(onMessage) {
       // account are observable by the messages.upsert handler.
       emitOwnEvents: true,
       syncFullHistory: false,
+      shouldSyncHistoryMessage: () => false,
+      shouldIgnoreJid: (jid) => Boolean(jid && (jid.endsWith('@broadcast') || jid.endsWith('@newsletter'))),
+      cachedGroupMetadata: async (jid) => groupMetadataCache.get(jid),
     });
     sock = nextSock;
     let socketOpen = false;
@@ -239,32 +242,41 @@ export function onReady(cb) {
   onReadyCallback = cb;
 }
 
-/** Fetch all participating WhatsApp groups. */
-export async function getParticipatingGroups(sock) {
+// In-memory caches for group metadata and participating groups
+const groupMetadataCache = new Map();
+let participatingGroupsCache = null;
+let participatingGroupsCacheTime = 0;
+const GROUPS_CACHE_TTL = 3 * 60_000; // 3 minutes
+
+/** Fetch all participating WhatsApp groups (with 3-min TTL cache). */
+export async function getParticipatingGroups(sock, forceRefresh = false) {
   if (!sock) return [];
+  if (!forceRefresh && participatingGroupsCache && Date.now() - participatingGroupsCacheTime < GROUPS_CACHE_TTL) {
+    return participatingGroupsCache;
+  }
   try {
     const groups = await sock.groupFetchAllParticipating();
-    return Object.values(groups).map((g) => ({
-      id: g.id,
-      subject: g.subject || 'Unnamed Group',
-      participantsCount: g.participants?.length || 0,
-    }));
+    participatingGroupsCache = Object.values(groups).map((g) => {
+      if (g.id) groupMetadataCache.set(g.id, g);
+      return {
+        id: g.id,
+        subject: g.subject || 'Unnamed Group',
+        participantsCount: g.participants?.length || 0,
+      };
+    });
+    participatingGroupsCacheTime = Date.now();
+    return participatingGroupsCache;
   } catch (err) {
     console.error('✖ Failed to fetch groups:', err.message || err);
-    return [];
+    return participatingGroupsCache || [];
   }
 }
 
-/** Search participating WhatsApp groups by name (case-insensitive). */
+/** Search participating WhatsApp groups by name (case-insensitive, cached). */
 export async function searchGroups(sock, query = '') {
   if (!sock) return [];
   try {
-    const groups = await sock.groupFetchAllParticipating();
-    const all = Object.values(groups).map((g) => ({
-      id: g.id,
-      subject: g.subject || 'Unnamed Group',
-      participantsCount: g.participants?.length || 0,
-    }));
+    const all = await getParticipatingGroups(sock, false);
     const q = query.trim().toLowerCase();
     if (!q) return all;
     return all.filter((g) => g.subject.toLowerCase().includes(q));

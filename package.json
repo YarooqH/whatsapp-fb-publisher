@@ -8,9 +8,10 @@
   "scripts": {
     "start": "node src/index.js",
     "service": "node src/service.js",
+    "build:service": "esbuild src/service.js --bundle --platform=node --target=node18 --format=esm --minify --banner:js=\"import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);\" --outfile=dist/service.js",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "node scripts/prepare-standalone.js && tauri build"
+    "tauri:build": "node scripts/prepare-standalone.js && npm run build:service && tauri build"
   },
   "engines": {
     "node": ">=18.17"
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@tauri-apps/api": "^2.12.1",
-    "@tauri-apps/cli": "^2.12.1"
+    "@tauri-apps/cli": "^2.12.1",
+    "esbuild": "^0.28.2"
   }
 }

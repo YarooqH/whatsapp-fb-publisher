@@ -242,6 +242,7 @@ async function handleMessage(msg, sock) {
           );
           addLog('info', 'Hosting image for Facebook/Buffer delivery…');
           imageUrl = await uploadImage(imageBuffer, content.rawImage?.mimetype || 'image/jpeg', config.catboxUserhash);
+          imageBuffer = null; // Explicitly release memory immediately for GC
 
           if (config.catboxUserhash && imageUrl) {
             setTimeout(async () => {

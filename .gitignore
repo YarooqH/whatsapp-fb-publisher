@@ -28,6 +28,7 @@ logs/
 scratch/
 graphify-out/
 .dist/
+dist/
 
 # OS & Editor
 .DS_Store

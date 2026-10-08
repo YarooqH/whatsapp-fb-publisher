@@ -1,15 +1,18 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-
-const DRAFTS_FILE = new URL('../drafts.json', import.meta.url);
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { getStorageDir } from './store.js';
 
 export function saveDraft(text) {
+  const draftsFile = join(getStorageDir(), 'drafts.json');
   let drafts = [];
-  try {
-    drafts = JSON.parse(readFileSync(DRAFTS_FILE, 'utf8'));
-  } catch {
-    /* first draft */
+  if (existsSync(draftsFile)) {
+    try {
+      drafts = JSON.parse(readFileSync(draftsFile, 'utf8'));
+    } catch {
+      /* first draft */
+    }
   }
   drafts.push({ text, at: new Date().toISOString() });
-  writeFileSync(DRAFTS_FILE, JSON.stringify(drafts, null, 2));
+  writeFileSync(draftsFile, JSON.stringify(drafts, null, 2));
   return drafts.length;
 }

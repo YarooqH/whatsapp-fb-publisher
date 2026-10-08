@@ -235,6 +235,19 @@ function addLogEntry(item) {
   `;
 
   el.logFeed.insertBefore(row, el.logFeed.firstChild);
+
+  // Keep DOM lean — prune oldest logs if count exceeds 50
+  const items = el.logFeed.children;
+  while (items.length > 50) {
+    el.logFeed.removeChild(el.logFeed.lastChild);
+  }
+
+  // Prevent unbounded growth of seenLogIds set
+  if (seenLogIds.size > 150) {
+    const toDelete = Array.from(seenLogIds).slice(0, 50);
+    toDelete.forEach((id) => seenLogIds.delete(id));
+  }
+
   const count = el.logFeed.querySelectorAll('.log-item').length;
   el.logCount.textContent = `${count} event${count === 1 ? '' : 's'}`;
 }

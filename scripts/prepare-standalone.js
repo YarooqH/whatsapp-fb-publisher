@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,3 +19,7 @@ if (!fs.existsSync(targetNode)) {
 } else {
   console.log('✓ Standalone Node.js runtime already present in src-tauri/bin.');
 }
+
+console.log('📦 Bundling standalone service with esbuild...');
+execSync('npm run build:service', { cwd: rootDir, stdio: 'inherit' });
+console.log('✓ Service bundle generated at dist/service.js.');
