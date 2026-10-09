@@ -18,11 +18,22 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/YarooqH/whatsapp-fb-publisher/actions/workflows/ci.yml"><img src="https://github.com/YarooqH/whatsapp-fb-publisher/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
+  <a href="https://github.com/YarooqH/whatsapp-fb-publisher/releases"><img src="https://img.shields.io/github/v/release/YarooqH/whatsapp-fb-publisher?color=blue&logo=github" alt="Latest Release"></a>
+  <img src="https://img.shields.io/badge/Platform-Windows%20Only-0078D6?logo=windows&logoColor=white" alt="Platform Windows Only">
   <img src="https://img.shields.io/badge/Tauri-v2-blue?logo=tauri&logoColor=white" alt="Tauri v2">
   <img src="https://img.shields.io/badge/Node.js-%3E%3D18.17-brightgreen?logo=node.js&logoColor=white" alt="Node.js">
-  <img src="https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white" alt="Platform Windows">
   <img src="https://img.shields.io/badge/License-MIT-gray" alt="License MIT">
 </p>
+
+---
+
+> [!IMPORTANT]
+> ### ⚠️ Platform Support Disclaimer (Windows Only)
+> **Relay's desktop application is officially built and packaged for Microsoft Windows only (Windows 10/11 64-bit).**
+>
+> - **Desktop App & System Tray**: Leverages Windows WebView2, Win32 system tray routines, background daemon management, and a self-contained Windows Node.js executable. macOS (`.dmg`/`.app`) and Linux (`.deb`/AppImage) desktop packages are **not** supported or provided.
+> - **Headless Server Alternative**: Users on Linux or macOS who wish to run Relay on a server or VPS can still execute the headless background CLI via `npm install && npm start` under Node.js v18.17+, but the desktop GUI installer is Windows-exclusive.
 
 ---
 
@@ -32,7 +43,7 @@
 
 - **Zero Meta App Approval**: Uses Buffer's official modern GraphQL API — no Facebook Developer account verification, no review submission, and no token expiration headaches.
 - **Photos & Media Forwarding**: Uploads images to temporary storage and automatically cleans them up using Catbox auto-delete 10 minutes after posting.
-- **Background System Tray**: Runs as an ultra-lightweight desktop app (~15MB RAM) that tucks into your system tray and starts on Windows boot.
+- **Background System Tray**: Runs as an ultra-lightweight desktop app (~25–35MB RAM) that tucks into your Windows system tray and starts on boot.
 
 ---
 
@@ -93,7 +104,7 @@
 
 ### Option A: Using the Desktop Application (Recommended)
 
-1. **Launch Relay**: Run `Relay_0.1.0_x64-setup.exe` (or standalone `relay.exe`). No Node.js or Git installation required!
+1. **Launch Relay**: Run `Relay_0.2.0_x64-setup.exe` (or standalone `relay.exe`). No Node.js or Git installation required!
 2. **Step 1 — Connect WhatsApp**: Scan the on-screen QR code from WhatsApp on your phone (**Settings → Linked Devices → Link a Device**).
 3. **Step 2 — Connect Facebook via Buffer**:
    - Create a free account at [buffer.com](https://buffer.com) and link your Facebook Page.
@@ -201,14 +212,24 @@ npm run tauri:dev
 npm run service
 ```
 
-### Building the Desktop Executable
+### Building the Desktop Executable (Local)
 ```bash
 # Build standalone release installer & binary
 npm run tauri:build
 ```
 The compiled standalone Windows installer and binary are output to:
-- **Installer**: `src-tauri/target/release/bundle/nsis/Relay_0.1.0_x64-setup.exe` (Self-contained, shareable with any user)
+- **Installer**: `src-tauri/target/release/bundle/nsis/Relay_0.2.0_x64-setup.exe` (Self-contained, shareable with any user)
 - **Binary**: `src-tauri/target/release/relay.exe`
+
+### Automated CI/CD & Releases (GitHub Actions)
+Relay uses GitHub Actions for automated continuous integration and release delivery:
+- **CI Pipeline (`.github/workflows/ci.yml`)**: Runs on every pull request and push to `main` on `windows-latest` to validate dependencies, bundling, and compilation.
+- **Automated Releases (`.github/workflows/release.yml`)**: Pushing a version tag triggers a Windows build that compiles the NSIS installer and publishes an official release on GitHub:
+  ```bash
+  git tag v0.2.0
+  git push origin v0.2.0
+  ```
+  The workflow automatically packages `Relay_0.2.0_x64-setup.exe` and uploads it to GitHub Releases.
 
 ---
 

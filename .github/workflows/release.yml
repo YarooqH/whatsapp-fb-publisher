@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release (e.g. v0.2.0)'
+        required: false
+        default: ''
+      draft:
+        description: 'Create draft release'
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    name: Build & Release (Windows)
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust Stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare standalone runtime and service bundle
+        run: node scripts/prepare-standalone.js
+
+      - name: Build Desktop Application & Create GitHub Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name || 'v__VERSION__' }}
+          releaseName: 'Relay v__VERSION__'
+          releaseDraft: ${{ inputs.draft || false }}
+          prerelease: false
+          releaseBody: |
+            ## Relay v__VERSION__
+
+            Relay is a standalone, ultra-lightweight desktop bridge that automatically publishes messages, scheduled posts, and photos from your WhatsApp self-chat or designated group to your Facebook Page.
+
+            ---
+
+            ### ⚠️ Platform Support Disclaimer
+            > **Relay Desktop is currently built and officially supported for Windows only (Windows 10/11 64-bit).**
+            > 
+            > The desktop shell relies on Windows-native WebView2, Win32 system tray integration, and an embedded Node.js Win32 runtime daemon. macOS and Linux users can run the headless CLI backend (`npm start`) with Node.js 18.17+, but the GUI desktop installer is Windows-exclusive.
+
+            ---
+
+            ### 🚀 Highlights in this Release
+            - **High-Performance Memory Tuning**: History sync bypass, broadcast story filter, and group metadata TTL caching.
+            - **Zero-Dependency Standalone Bundle**: Single-file bundled background service (`dist/service.js`, ~3.4 MB) eliminates `node_modules` distribution bloat (~60 MB reduction).
+            - **Native System Tray**: Runs quietly in the background at ~25–35 MB RAM.
+            - **Two-Way Publishing**: Buffer GraphQL API (zero Meta App approval) or direct Facebook Graph API.
+
+            ### 📦 Installation
+            1. Download `Relay___VERSION___x64-setup.exe` below.
+            2. Run the installer (or extract portable binaries).
+            3. Follow the on-screen setup wizard to link WhatsApp via QR code and connect your Facebook Page.
